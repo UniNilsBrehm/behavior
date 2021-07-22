@@ -13,30 +13,32 @@ def compute_distance_moved(x, y):
 
 
 # ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-# Just some testing
-p = 'C:/Users/Nils/Desktop/test.csv'
-df = dt.fread(p)
-
-# WORKING WITH LONG FORMAT AND DATATABLE PACKAGE
-# Find idx of all "tap4_x" stimuli:
-idx = [x for x, v in enumerate(df['stimulus'].to_list()[0]) if v.startswith('tap4')]
-tap4 = df[idx, :]
+# # Just some testing
+# p = 'C:/Users/Nils/Desktop/test.csv'
+# df = dt.fread(p)
+#
+# # WORKING WITH LONG FORMAT AND DATATABLE PACKAGE
+# # Find idx of all "tap4_x" stimuli:
+# idx = [x for x, v in enumerate(df['stimulus'].to_list()[0]) if v.startswith('tap4')]
+# tap4 = df[idx, :]
+#
+# # Get mean distance for each stimuli and treatment group
+# means = df[:, dt.mean(f[:]), by('stimulus', 'treatment')]
 
 # ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-# Get mean distance for each stimuli and treatment group
-means = df[:, dt.mean(f[:]), by('stimulus', 'treatment')]
-
-# IMPORT TXT DATA FILES
+# SETTINGS
 group = 'Group2'
 smoothing = 'txt'
-dir_path = f'{os.getcwd()}/kurs2021/'  # get current working dir
+dir_path = f'C:/Uni Freiburg/Behavior/kurs2021/'  # get current working dir
 raw_data_path = f'rawdata/{group}/{smoothing}'
 save_path = f'{dir_path}/analysis/{group}'
 filenames = next(os.walk(f'{dir_path}{raw_data_path}'), (None, None, []))[2]  # [] if no file
 
+# ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+# GET DATA
+
 # get data files (txt files that start with 'Track')
 data_files_names = [i for i in filenames if i.startswith('Track')]
-
 # Get protocol file (We will take just the first one since all are the same)
 protocol_file_name = [i for i in filenames if i.startswith('Trial')][0]
 
@@ -65,21 +67,55 @@ for i, v in enumerate(data_files_names):
         distance[area_name] = df['Distance moved']
         distance[area_name] = dt.float32
 
-# Load protocol txt file
+# ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+# LOAD PROTOCOL AND FIND STIMULI
+
+# Load txt files
 # Find number of head lines (stored in each txt file)
 skip_rows = dt.fread(f'{file_path}{protocol_file_name}', max_nrows=1, fill=True)[:, 1]
+
 # Convert to int
 skip_rows[:, :] = dt.int32
 protocol = dt.fread(f'{file_path}{protocol_file_name}', na_strings=['-'], fill=True, skip_to_line=skip_rows[0, 0]-1)
+
 # delete units row
 del protocol[0, :]
-# Find stimulus tags
-tags = protocol[:, ['Recording time', 'Action'], by(f.Action != '')].to_list()
-stimulus_tags = [np.array(tags[1], dtype='float32')[tags[0]], np.array(tags[2])[tags[0]]]
 
-# Cut out stimulus time points
-time_interval = 1  # in secs
-a = distance[:, :, by((f.Time >= stimulus_tags[0][10]) & (f.Time <= stimulus_tags[0][10] + time_interval))]
+# Find stimulus tags and remove the last one, which should be "Stop track"
+tags = protocol[:-1, ['Recording time', 'Action'], by((f.Action != '')&(f.Event =='becomes active'))].to_list()
+stimulus_tags = dict.fromkeys(np.array(tags[2])[tags[0]])
+for i, tag_name in enumerate(stimulus_tags.keys()):
+    stimulus_tags[tag_name] = np.array(tags[1], dtype='float32')[tags[0]][i]
+
+# Load treatments
+treatments = dt.fread(f'{dir_path}/analysis/wells.csv', na_strings=[''], fill=True, max_nrows=4)
+# ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+# DATA MANIPULATIONS
+
+# Cut out stimulus time points and sum distance moved
+# Then put all data into one data frame in long format (stacked data)
+time_interval = [60, 30, 30] + [1] * 10  # in secs; has to be set manually
+group_nr = 1
+entry_id = 0
+list_container = []
+cc = 0
+for stimulus_time in enumerate(stimulus_tags):
+    dummy = distance[:, :, by((f.Time >= stimulus_time[0]) & (f.Time <= stimulus_time[0] + time_interval[cc]))]
+    summed = dummy[dummy[:, 0], 2:].sum()
+    for k in summed.keys():
+        new_row = [entry_id, f'{group_nr}_{k}', group_nr, k, treatments[group_nr-1, k], stimulus_time[1], time_interval[cc], summed[0, k]]
+        list_container.append(new_row)
+        entry_id += 1
+    cc += 1
+data_long = dt.Frame(np.array(list_container))
+data_long.names = ['ID', 'FishID', 'Group', 'Well', 'Treatment', 'Stimulus', 'Duration', 'Distance(summed)']
+data_long['Distance(summed)'] = dt.float32
+data_long['Duration'] = dt.float32
+
+# Look at some statistics
+# Get mean distance for each stimuli and treatment group
+means = data_long[:, dt.mean(f['Distance(summed)']), by('Stimulus', 'Treatment')]
+
 embed()
 exit()
 

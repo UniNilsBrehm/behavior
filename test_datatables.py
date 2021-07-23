@@ -2,6 +2,7 @@ from datatable import (dt, f, by, ifelse, update, sort,
                        count, min, max, mean, sum, rowsum)
 from IPython import embed
 import os
+import pickle
 import numpy as np
 import pandas as pd
 import scipy.stats as stats
@@ -31,21 +32,22 @@ def compute_distance_moved(x, y):
 
 # ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 # SETTINGS
-group = 'Group2'
 smoothing = 'txt'
 dir_path = f'C:/Uni Freiburg/Behavior/kurs2021/'  # get current working dir
 all_groups = ['Group1', 'Group2', 'Group3', 'Group4']
 final_data = dict.fromkeys(all_groups)
+time_course_all = dict.fromkeys(all_groups)
+remove_fish_in_time_course = False
+remove_fish_in_distance = True
 remove_fish_in_group_well = [
     ['A7'],
     ['A1', 'A3', 'A4', 'B3', 'B4', 'B6', 'B7', 'C1', 'C5', 'F4'],
     ['A3', 'A5', 'B1', 'B3', 'C5', 'D8'],
     ['B4', 'B6', 'C6', 'C7', 'D7', 'D8', 'F7']
                              ]
-
 for group_i, group_v in enumerate(tqdm(all_groups)):
-    raw_data_path = f'rawdata/{group}/{smoothing}'
-    save_path = f'{dir_path}/analysis/{group}'
+    raw_data_path = f'rawdata/{group_v}/{smoothing}'
+    save_path = f'{dir_path}/analysis/{group_v}'
     filenames = next(os.walk(f'{dir_path}{raw_data_path}'), (None, None, []))[2]  # [] if no file
 
     # ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -96,7 +98,7 @@ for group_i, group_v in enumerate(tqdm(all_groups)):
     del protocol[0, :]
 
     # Find stimulus tags and remove the last one, which should be "Stop track"
-    tags = protocol[:-1, ['Recording time', 'Action'], by((f.Action != '')&(f.Event =='becomes active'))].to_list()
+    tags = protocol[:-1, ['Recording time', 'Action'], by((f.Action != '') & (f.Event =='becomes active'))].to_list()
     stimulus_tags = dict.fromkeys(np.array(tags[2])[tags[0]])
     for i, tag_name in enumerate(stimulus_tags.keys()):
         stimulus_tags[tag_name] = np.array(tags[1], dtype='float32')[tags[0]][i]
@@ -108,15 +110,38 @@ for group_i, group_v in enumerate(tqdm(all_groups)):
 
     # Cut out stimulus time points and sum distance moved
     # Then put all data into one data frame in long format (stacked data)
-    time_interval = [60, 30, 30] + [1] * 10  # in secs; has to be set manually
+    time_interval = [60, 30, 30] + [1] * (len(stimulus_tags)-3)  # in secs; has to be set manually
     entry_id = 0
     list_container = []
     cc = 0
-    for stimulus_time in enumerate(stimulus_tags):
-        dummy = distance[:, :, by((f.Time >= stimulus_time[0]) & (f.Time <= stimulus_time[0] + time_interval[cc]))]
+    time_course = {}
+    for st_i, stimulus_name in enumerate(stimulus_tags):
+        treatments_group = treatments.copy()
+        # print(f'{stimulus_name}: {stimulus_tags[stimulus_name]}')
+        dummy = distance[:, :, by((f.Time >= stimulus_tags[stimulus_name]) & (f.Time <= stimulus_tags[stimulus_name] +
+                                                                              time_interval[cc]))]
+        # Now sum distance over time:
         summed = dummy[dummy[:, 0], 2:].sum()
+        # Store time course:
+        tc = dummy[dummy[:, 0], 2:]
+
+        # Delete miss-tracked animals:
+        if remove_fish_in_time_course:
+            del treatments_group[:, remove_fish_in_group_well[group_i]]
+            del tc[:, remove_fish_in_group_well[group_i]]
+        if remove_fish_in_distance:
+            del summed[:, remove_fish_in_group_well[group_i]]
+
+        # change labels to A1(treatment)....:
+        if remove_fish_in_time_course:
+            labels = []
+            for k, v in enumerate(list(tc.names)):
+                labels.append(f'{v}({list(treatments_group[int(group_v[-1]) - 1, 1:].to_numpy()[0])[k]})')
+            tc.names = labels
+        time_course[stimulus_name] = tc
+
         for k in summed.keys():
-            new_row = [entry_id, f'{group_v[-1]}_{k}', int(group_v[-1]), k, treatments[int(group_v[-1])-1, k], stimulus_time[1],
+            new_row = [entry_id, f'{group_v[-1]}_{k}', int(group_v[-1]), k, treatments[int(group_v[-1])-1, k], stimulus_name,
                        time_interval[cc], summed[0, k]]
             list_container.append(new_row)
             entry_id += 1
@@ -126,25 +151,18 @@ for group_i, group_v in enumerate(tqdm(all_groups)):
     data_long['Distance(summed)'] = dt.float32
     data_long['Duration'] = dt.float32
     # Remove miss-tracked animals:
-    for del_entries in remove_fish_in_group_well[group_i]:
-        del data_long[:, :, by(f['Well'] != del_entries)]
+    # for del_entries in remove_fish_in_group_well[group_i]:
+    #     del data_long[:, :, by(f['Well'] != del_entries)]
     final_data[group_v] = data_long
+    time_course_all[group_v] = time_course
 
 # Combine all groups into one data frame
 data_all_groups = dt.rbind(final_data['Group1'], final_data['Group2'], final_data['Group3'], final_data['Group4'])
 
-# Look at some statistics
-# Get mean distance for each stimuli and treatment group
-# means = data_all_groups[:, [dt.mean(f['Distance(summed)']), dt.sd(f['Distance(summed)'])], by('Stimulus', 'Treatment')]
-# data_all_groups[:, :, by(f['Stimulus'] == 'Tap5_1', f['Treatment'])]
+# Store data to HDD:
+pickle.dump(data_all_groups, open(f'{dir_path}/analysis/data/summed_distances.pkl', "wb"))
+pickle.dump(time_course_all, open(f'{dir_path}/analysis/data/time_courses.pkl', "wb"))
 
-# Pandas Pivot Table
-mean = pd.pivot_table(data_all_groups.to_pandas(), values='Distance(summed)', index=['Stimulus'],
-                    columns=['Treatment'], aggfunc=np.mean)
+print('All data stored to HDD')
 
-sd = pd.pivot_table(data_all_groups.to_pandas(), values='Distance(summed)', index=['Stimulus'],
-                    columns=['Treatment'], aggfunc=stats.sem)
-
-embed()
-exit()
 

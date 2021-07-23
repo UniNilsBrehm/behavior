@@ -20,6 +20,18 @@ with open(path_time_courses, "rb") as input_file:
 with open(path_summed_distances, "rb") as input_file:
     summed_distances = pickle.load(input_file)
 
+# # Just some testing
+# p = 'C:/Users/Nils/Desktop/test.csv'
+# df = dt.fread(p)
+#
+# # WORKING WITH LONG FORMAT AND DATATABLE PACKAGE
+# # Find idx of all "tap4_x" stimuli:
+# idx = [x for x, v in enumerate(df['stimulus'].to_list()[0]) if v.startswith('tap4')]
+# tap4 = df[idx, :]
+#
+# # Get mean distance for each stimuli and treatment group
+# means = df[:, dt.mean(f[:]), by('stimulus', 'treatment')]
+
 # Look at some statistics
 # Get mean distance for each stimuli and treatment group
 # means = data_all_groups[:, [dt.mean(f['Distance(summed)']), dt.sd(f['Distance(summed)'])], by('Stimulus', 'Treatment')]

@@ -18,19 +18,6 @@ def compute_distance_moved(x, y):
 
 
 # ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
-# # Just some testing
-# p = 'C:/Users/Nils/Desktop/test.csv'
-# df = dt.fread(p)
-#
-# # WORKING WITH LONG FORMAT AND DATATABLE PACKAGE
-# # Find idx of all "tap4_x" stimuli:
-# idx = [x for x, v in enumerate(df['stimulus'].to_list()[0]) if v.startswith('tap4')]
-# tap4 = df[idx, :]
-#
-# # Get mean distance for each stimuli and treatment group
-# means = df[:, dt.mean(f[:]), by('stimulus', 'treatment')]
-
-# ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 # SETTINGS
 smoothing = 'txt'
 dir_path = f'C:/Uni Freiburg/Behavior/kurs2021/'  # get current working dir
@@ -49,7 +36,6 @@ for group_i, group_v in enumerate(tqdm(all_groups)):
     raw_data_path = f'rawdata/{group_v}/{smoothing}'
     save_path = f'{dir_path}/analysis/{group_v}'
     filenames = next(os.walk(f'{dir_path}{raw_data_path}'), (None, None, []))[2]  # [] if no file
-
     # ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
     # GET DATA
 
@@ -150,9 +136,6 @@ for group_i, group_v in enumerate(tqdm(all_groups)):
     data_long.names = ['ID', 'FishID', 'Group', 'Well', 'Treatment', 'Stimulus', 'Duration', 'Distance(summed)']
     data_long['Distance(summed)'] = dt.float32
     data_long['Duration'] = dt.float32
-    # Remove miss-tracked animals:
-    # for del_entries in remove_fish_in_group_well[group_i]:
-    #     del data_long[:, :, by(f['Well'] != del_entries)]
     final_data[group_v] = data_long
     time_course_all[group_v] = time_course
 

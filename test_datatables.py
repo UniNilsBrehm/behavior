@@ -125,23 +125,29 @@ for group_i, group_v in enumerate(tqdm(all_groups)):
                 labels.append(f'{v}({list(treatments_group[int(group_v[-1]) - 1, 1:].to_numpy()[0])[k]})')
             tc.names = labels
         time_course[stimulus_name] = tc
-
         for k in summed.keys():
-            new_row = [entry_id, f'{group_v[-1]}_{k}', int(group_v[-1]), k, treatments[int(group_v[-1])-1, k], stimulus_name,
-                       time_interval[cc], summed[0, k]]
+            if stimulus_name.startswith('Tap'):
+                trial = stimulus_name[-1]
+                new_stimulus_name = stimulus_name[:-2]
+                new_row = [entry_id, f'{group_v[-1]}_{k}', int(group_v[-1]), k, treatments[int(group_v[-1]) - 1, k],
+                           new_stimulus_name,
+                           time_interval[cc], summed[0, k], trial]
+            else:
+                new_row = [entry_id, f'{group_v[-1]}_{k}', int(group_v[-1]), k, treatments[int(group_v[-1])-1, k], stimulus_name,
+                           time_interval[cc], summed[0, k], 1]
             list_container.append(new_row)
             entry_id += 1
         cc += 1
     data_long = dt.Frame(np.array(list_container))
-    data_long.names = ['ID', 'FishID', 'Group', 'Well', 'Treatment', 'Stimulus', 'Duration', 'Distance(summed)']
-    data_long['Distance(summed)'] = dt.float32
+    data_long.names = ['ID', 'FishID', 'Group', 'Well', 'Treatment', 'Stimulus', 'Duration', 'Distance', 'Trial']
+    data_long['Distance'] = dt.float32
     data_long['Duration'] = dt.float32
+    data_long['Trial'] = dt.float32
     final_data[group_v] = data_long
     time_course_all[group_v] = time_course
 
 # Combine all groups into one data frame
 data_all_groups = dt.rbind(final_data['Group1'], final_data['Group2'], final_data['Group3'], final_data['Group4'])
-
 # Store data to HDD:
 pickle.dump(data_all_groups, open(f'{dir_path}/analysis/data/summed_distances.pkl', "wb"))
 pickle.dump(time_course_all, open(f'{dir_path}/analysis/data/time_courses.pkl', "wb"))

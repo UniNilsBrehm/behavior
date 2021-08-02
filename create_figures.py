@@ -8,6 +8,7 @@ import pandas as pd
 import scipy.stats as stats
 import matplotlib.pyplot as plt
 from tqdm import tqdm
+import seaborn as sns
 
 # LOAD DATA
 sampling_rate = 30
@@ -43,8 +44,31 @@ with open(path_summed_distances, "rb") as input_file:
 #
 # sd = pd.pivot_table(summed_distances.to_pandas(), values='Distance(summed)', index=['Stimulus'],
 #                     columns=['Treatment'], aggfunc=np.std)
-# embed()
-# exit()
+# # Only Taps from all groups:
+# d = mean.drop(['Tap3_3', 'Tap4_3', 'Tap5_3', 'Tap6_3', 'Tap7_3', 'Light Off', 'Light On', 'Start track'])
+# d = d.drop(columns=['nofish'])
+# plt.plot(d[['control', 'cu1uM', 'cu10uM', 'cu50uM', 'cu100uM']])
+
+data = summed_distances.to_pandas()
+# Select rows by condition:
+a = data[(data['Stimulus'] == 'Tap5') & (data['Treatment'] != 'nofish')]
+b = data[(data['Treatment'] != 'nofish') & (data['Stimulus'] !='Start track') & (data['Stimulus'] !='Light On') &
+         (data['Stimulus'] !='Light Off')]
+
+# a.boxplot(column=['Distance'], by=['Treatment'])
+order = ['control', 'cu1uM', 'cu10uM', 'cu50uM', 'cu100uM', 'neo100uM', 'neo200uM', 'neo400uM']
+# SEABORN PLOTTING
+# ax = sns.boxplot(x='Treatment', y='Distance', hue='Group', data=a, order=order)
+# ax2 = sns.swarmplot(x='Treatment', y='Distance', hue='Group', data=a, order=order, color=".25", size=1)
+# plt.show()
+# ax = sns.catplot(x='Treatment', y='Distance', hue='Stimulus', data=b, kind='box', order=order)
+# ax = sns.barplot(x='Treatment', y='Distance', hue='Stimulus',order=order, data=b, estimator=np.median)
+ax = sns.barplot(x='Treatment', y='Distance', hue='Stimulus', order=order, data=b, ci=68, n_boot=1000)
+sns.set_style("ticks")
+sns.despine()
+plt.show()
+embed()
+exit()
 # PLOTTING
 row_names = ['A', 'B', 'C', 'D', 'E', 'F']
 # Loop through Groups
